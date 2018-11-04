@@ -3,6 +3,9 @@ from distutils.extension import Extension
 from Cython.Build import cythonize
 
 
+# we could support just building GAP
+# otherwise we'll have to work out a way to
+# detect paths
 extensions = [
             Extension("gap_api", ["gap_api.pyx"],
             include_dirs=['/home/mp397/git/gap/src',
