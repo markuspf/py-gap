@@ -9,6 +9,7 @@ cdef extern from "libgap-api.h":
     Obj GAP_EvalString(const char *)
     Obj GAP_ValueGlobalVariable(const char *)
     Obj GAP_MakeObjInt(const UInt * limbs, Int size)
+    Obj GAP_MakeString(const char * string)
 
 cdef class GAPObj(object):
     cdef Obj value
