@@ -1,3 +1,14 @@
+cdef _setup_gapobj(GAPObj go, Obj o):
+    go.value = o
+
+cdef Obj _extract_obj(GAPObj gobj):
+    cdef Obj r = gobj.value
+    return r
+
+cdef GAPObj _wrap_obj(Obj o):
+    go = GAPObj()
+    _setup_gapobj(go, o)
+    return go
 
 cdef Obj _gap_integer(pyint):
     sign = 1
@@ -15,24 +26,57 @@ cdef Obj _gap_integer(pyint):
 
 cdef class GAPObj(object):
     def __init__(self):
-        self.value = NULL
+        pass
     def __hash__(self):
-        return <int>(self.value)
+        return <unsigned long>(self.value)
 
 class GAPInteger(GAPObj):
     def __init__(self, val):
-        self.value = gap_obj(_gap_integer(val))
+        cdef Obj r
+        cdef char * climbs
+
+        sign = 1
+        if val == 0:
+            _setup_gapobj(self, GAP_MakeObjInt([], 0))
+            return
+        elif val < 0:
+            sign = -1
+            val = -val
+
+        # number of limbs, a limb is 8 bytes
+        nlimbs = ((val.bit_length() + 7) // 8 + 7) // 8
+        limbs = val.to_bytes(8 * nlimbs, 'little')
+        # TODO: Why does cython make me do this dance?
+        climbs = limbs
+
+        r = GAP_MakeObjInt(<const UInt *>climbs, sign * nlimbs)
+        _setup_gapobj(self, r)
 
 class GAPString(GAPObj):
     def __init__(self, val):
-        self.value = gap_obj(GAP_MakeString(bytes(val, 'utf-8')))
+        cdef Obj r = GAP_MakeString(<const char *>val)
+        _setup_gapobj(self, r)
 
 class GAPPermutation(GAPObj):
     def __init__(self, val):
         self.value = None
 
 class GAPList(GAPObj):
-    pass
+    def __init__(self, *args):
+        cdef Int i
+        cdef Int nargs = len(args)
+        cdef Obj r
+        cdef Obj v
+        r = GAP_NewPlist(nargs)
+        for i in range(nargs):
+            v = _extract_obj(args[i])
+            GAP_AssList(r, i+1, v)
+        _setup_gapobj(self, r)
+
+    def __repr__(self):
+        return "<blalist>"
+    def __str__(self):
+        return "<blalist>"
 
 class GAPRecord(GAPObj):
     pass
@@ -40,11 +84,6 @@ class GAPRecord(GAPObj):
 class GAPFunction(GAPObj):
     pass
 
-
-cdef GAPObj gap_obj(Obj obj):
-    cdef GAPObj r = GAPObj()
-    r.value = obj
-    return r
 
 cdef void gasman_callback():
     pass
@@ -55,106 +94,31 @@ cdef void error_callback():
 cdef gap_to_python(GAPObj obj):
     return None
 
-cdef python_to_gap(obj):
-    return gap_obj(NULL)
+def initialize(args, gasman_cb, error_cb, handle_signals):
+    cdef int argc = len(args)
+    cdef char* argv[128]
 
-class GAP:
-    def initialize(self, args, gasman_cb, error_cb, handle_signals):
-        cdef int argc = len(args)
-        cdef char* argv[128]
+    for i in xrange(argc):
+        args[i] = bytes(args[i], 'utf-8')
+        argv[i] = args[i]
 
-        for i in xrange(argc):
-            args[i] = bytes(args[i], 'utf-8')
-            argv[i] = args[i]
+    argv[argc] = NULL
 
-        argv[argc] = NULL
+    cdef GAP_CallbackFunc mcb = &gasman_callback
+    cdef GAP_CallbackFunc ecb = &error_callback
+    cdef int hsg = handle_signals
 
-        cdef GAP_CallbackFunc mcb = &gasman_callback
-        cdef GAP_CallbackFunc ecb = &error_callback
-        cdef int hsg = handle_signals
+    GAP_Initialize(argc, argv, &gasman_callback, &error_callback, hsg)
 
-        GAP_Initialize(argc, argv, &gasman_callback, &error_callback, hsg)
+def EvalString(command):
+#    cdef char * cbla = command
+    return _wrap_obj(GAP_EvalString(command))
 
-    def EvalString(self, string):
-        return gap_obj(GAP_EvalString(bytes(string, 'utf-8')))
+def ValueGlobalVariable(name):
+    return _wrap_obj(GAP_ValueGlobalVariable(name))
 
-    def ValueGlobalVariable(self, name):
-        return gap_obj(GAP_ValueGlobalVariable(name))
+def CallFuncList(GAPObj func, GAPObj args):
+    cdef Obj f = _extract_obj(func)
+    cdef Obj a = _extract_obj(args)
+    GAP_CallFuncList(f, a)
 
-
-#    def EQ(self, a, b):
-#        return GAP_EQ(a,b)
-#    def LT(self, a, b):
-#        return GAP_LT(a,b)
-#    def IN(self, a, b):
-#        return GAP_IN(a,b)
-#
-#    def SUM(self, a, b):
-#        return GAP_SUM(a, b)
-#    def DIFF(self, a, b):
-#        return GAP_DIFF(a,b)
-#    def PROD(self, a, b):
-#        return GAP_PROD(a,b)
-#    def QUO(self, a, b):
-#        return GAP_QUO(a,b)
-#    def LQUO(self, a, b):
-#        return GAP_LQUO(a,b)
-#    def POW(self, a, b):
-#        return GAP_POW(a,b)
-#    def COMM(self, a, b):
-#        return GAP_COMM(a,b)
-#    def MOD(self, a, b):
-#        return GAP_MOD(a,b)
-#
-#
-#    # GAP_True
-#    # GAP_False
-#    # GAP_Fail
-#
-#    def CallFuncList(self, op, args):
-#        return GAP_CallFuncList(op, args)
-#    def CallFuncArray(self, op, args):
-#        return GAP_CallFuncArray(op, len(args), args)
-#
-#    def IsInt(self, o):
-#        return GAP_IsInt(o)
-#    def IsSmallInt(self, o):
-#        return GAP_IsSmallInt(o)
-#    def IsLargeInt(self, o):
-#        return GAP_IsLargeInt(o)
-#
-#    def MakeObjInt(self, limbs, size):
-#        return GAP_MakeObjInt(limbs, size)
-#    def SizeInt(self, o):
-#        return GAP_SizeInt(o)
-#    def AddrInt(self, o):
-#        return GAP_AddrInt(o)
-#
-#    def IsList(self, o):
-#        return GAP_IsList(o)
-#    def LenList(self, o):
-#        return GAP_LenList(o)
-#    def AssList(self, l, v):
-#        GAP_AssList(l, v)
-#    def ElmList(self, l, i):
-#        return GAP_ElmList(l, i)
-#
-#    def NewPlist(self, cap):
-#        return GAP_NewPlist(cap)
-#
-#    def IsString(self, o):
-#        return GAP_IsString(o)
-#    def LenString(self, o):
-#        return GAP_LenString(o)
-#    def CSTR_STRING(self, s):
-#        return GAP_CSTR_STRING(self, s)
-#    def MakeString(self, s):
-#        return GAP_MakeString(s)
-#    def MakeImmString(self, s):
-#        return GAP_MakeImmString(s)
-#
-#
-#    def ValueOfChar(self, o):
-#        return GAP_ValueOfChar(o)
-#    def CharWithValue(self, o):
-#        return GAP_CharWithValue(o)
