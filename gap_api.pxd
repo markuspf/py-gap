@@ -61,5 +61,5 @@ cdef extern from "libgap-api.h":
     Int GAP_ValueOfChar(Obj obj)
     Obj GAP_CharWithValue(UChar obj)
 
-cdef class GAPObj(object):
+cdef class ObjWrap(object):
     cdef Obj value

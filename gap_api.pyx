@@ -1,43 +1,39 @@
-cdef _setup_gapobj(GAPObj go, Obj o):
+# cython: c_string_type=unicode, c_string_encoding=utf-8
+
+# Helper to handle stringy inputs
+cdef char * _to_bytes(string):
+    py_bytes = string.encode('utf-8')
+    cdef char * cstring = py_bytes
+    return cstring
+
+cdef _setup_objwrap(ObjWrap go, Obj o):
     go.value = o
 
-cdef Obj _extract_obj(GAPObj gobj):
+cdef Obj _unwrap_obj(ObjWrap gobj):
     cdef Obj r = gobj.value
     return r
 
-cdef GAPObj _wrap_obj(Obj o):
-    go = GAPObj()
-    _setup_gapobj(go, o)
+cdef ObjWrap _wrap_obj(Obj o):
+    go = ObjWrap()
+    _setup_objwrap(go, o)
     return go
 
-cdef Obj _gap_integer(pyint):
-    sign = 1
-    if pyint == 0:
-        r = GAP_MakeObjInt([], 0)
-    elif pyint < 0:
-        sign = -1
-        pyint = -pyint
-
-    bytec = (pyint.bit_length() + 7) // 8
-    limbs = pyint.to_bytes(bytec, 'little')
-
-    cdef char * climbs = limbs
-    return GAP_MakeObjInt(<UInt *>climbs, sign * bytec)
-
-cdef class GAPObj(object):
+cdef class ObjWrap(object):
     def __init__(self):
+        pass
+    def to_python(self):
         pass
     def __hash__(self):
         return <unsigned long>(self.value)
 
-class GAPInteger(GAPObj):
+class Integer(ObjWrap):
     def __init__(self, val):
         cdef Obj r
         cdef char * climbs
 
         sign = 1
         if val == 0:
-            _setup_gapobj(self, GAP_MakeObjInt([], 0))
+            _setup_objwrap(self, GAP_MakeObjInt([], 0))
             return
         elif val < 0:
             sign = -1
@@ -50,18 +46,18 @@ class GAPInteger(GAPObj):
         climbs = limbs
 
         r = GAP_MakeObjInt(<const UInt *>climbs, sign * nlimbs)
-        _setup_gapobj(self, r)
+        _setup_objwrap(self, r)
 
-class GAPString(GAPObj):
+class String(ObjWrap):
     def __init__(self, val):
-        cdef Obj r = GAP_MakeString(<const char *>val)
-        _setup_gapobj(self, r)
+        cdef Obj r = GAP_MakeString(_to_bytes(val))
+        _setup_objwrap(self, r)
 
-class GAPPermutation(GAPObj):
+class Permutation(ObjWrap):
     def __init__(self, val):
         self.value = None
 
-class GAPList(GAPObj):
+class List(ObjWrap):
     def __init__(self, *args):
         cdef Int i
         cdef Int nargs = len(args)
@@ -69,30 +65,29 @@ class GAPList(GAPObj):
         cdef Obj v
         r = GAP_NewPlist(nargs)
         for i in range(nargs):
-            v = _extract_obj(args[i])
+            v = _unwrap_obj(args[i])
             GAP_AssList(r, i+1, v)
-        _setup_gapobj(self, r)
+        _setup_objwrap(self, r)
 
     def __repr__(self):
-        return "<blalist>"
+        return "<wrapped GAP list>"
     def __str__(self):
-        return "<blalist>"
+        return "<wrapped GAP list>"
 
-class GAPRecord(GAPObj):
+class Record(ObjWrap):
     pass
 
-class GAPFunction(GAPObj):
+class Function(ObjWrap):
     pass
 
+class Float(ObjWrap):
+    pass
 
 cdef void gasman_callback():
     pass
 
 cdef void error_callback():
     pass
-
-cdef gap_to_python(GAPObj obj):
-    return None
 
 def initialize(args, gasman_cb, error_cb, handle_signals):
     cdef int argc = len(args)
@@ -110,15 +105,14 @@ def initialize(args, gasman_cb, error_cb, handle_signals):
 
     GAP_Initialize(argc, argv, &gasman_callback, &error_callback, hsg)
 
-def EvalString(command):
-#    cdef char * cbla = command
-    return _wrap_obj(GAP_EvalString(command))
+def EvalString(cmd):
+    return _wrap_obj(GAP_EvalString(_to_bytes(cmd)))
 
 def ValueGlobalVariable(name):
-    return _wrap_obj(GAP_ValueGlobalVariable(name))
+    return _wrap_obj(GAP_ValueGlobalVariable(_to_bytes(name)))
 
-def CallFuncList(GAPObj func, GAPObj args):
-    cdef Obj f = _extract_obj(func)
-    cdef Obj a = _extract_obj(args)
+def CallFuncList(ObjWrap func, ObjWrap args):
+    cdef Obj f = _unwrap_obj(func)
+    cdef Obj a = _unwrap_obj(args)
     GAP_CallFuncList(f, a)
 
