@@ -52,6 +52,8 @@ class String(ObjWrap):
     def __init__(self, val):
         cdef Obj r = GAP_MakeString(_to_bytes(val))
         _setup_objwrap(self, r)
+    def to_python(self):
+        return "blabla"
 
 class Permutation(ObjWrap):
     def __init__(self, val):
@@ -116,3 +118,63 @@ def CallFuncList(ObjWrap func, ObjWrap args):
     cdef Obj a = _unwrap_obj(args)
     GAP_CallFuncList(f, a)
 
+# Possible to deduplicate this?
+def EQ(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return GAP_EQ(ca, cb)
+
+def LT(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return GAP_LT(ca, cb)
+
+def IN(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return GAP_IN(ca, cb)
+
+def SUM(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_SUM(ca, cb))
+
+def DIFF(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_DIFF(ca, cb))
+
+def PROD(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_PROD(ca, cb))
+
+def QUO(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_QUO(ca, cb))
+
+def LQUO(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_LQUO(ca, cb))
+
+def POW(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_POW(ca, cb))
+
+def COMM(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_COMM(ca, cb))
+
+def MOD(ObjWrap a, ObjWrap b):
+    cdef Obj ca = _unwrap_obj(a)
+    cdef Obj cb = _unwrap_obj(b)
+    return _wrap_obj(GAP_MOD(ca, cb))
+
+#    Obj GAP_True
+#    Obj GAP_False
+#    Obj GAP_Fail
+#

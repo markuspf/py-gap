@@ -6,6 +6,7 @@ EvalString(u'Print("Hello, world\\n");')
 
 Print = ValueGlobalVariable("Print")
 LoadPackage = ValueGlobalVariable("LoadPackage")
+TNAM_NAME = ValueGlobalVariable("TNAM_NAME")
 
 s = String("Hello, world\n")
 lf = String("\n")
