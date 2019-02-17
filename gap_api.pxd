@@ -61,5 +61,12 @@ cdef extern from "libgap-api.h":
     Int GAP_ValueOfChar(Obj obj)
     Obj GAP_CharWithValue(UChar obj)
 
+# TODO: Find out what nogil, except 0, do
+cdef extern from "libgap-api.h" nogil:
+    cdef void GAP_EnterStack()
+    cdef void GAP_LeaveStack()
+    cdef int GAP_Enter() except 0
+    cdef void GAP_Leave()
+
 cdef class ObjWrap(object):
     cdef Obj value

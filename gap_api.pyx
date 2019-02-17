@@ -23,8 +23,6 @@ cdef class ObjWrap(object):
         self.value = NULL
     def to_python(self):
         pass
-    def blafl(self):
-        pass
     def __hash__(self):
         return <unsigned long>(self.value)
 
@@ -66,7 +64,7 @@ class Integer(ObjWrap):
             elif sz < 0:
                 sign = -1
                 sz = -sz
-            
+
             sz = 8 * sz # number of bytes
             pcint = <const char *>GAP_AddrInt(i)
             cbytes = pcint[:sz]
@@ -75,13 +73,23 @@ class Integer(ObjWrap):
 
 class String(ObjWrap):
     def __init__(self, val):
-        cdef Obj r = GAP_MakeString(_to_bytes(val))
-        _setup_objwrap(self, r)
+        cdef Obj r
+        GAP_EnterStack()
+        try:
+            r = GAP_MakeString(_to_bytes(val))
+        finally:
+            GAP_LeaveStack()
+            _setup_objwrap(self, r)
     def to_python(self):
         cdef Obj s = _unwrap_obj(self)
-        cdef char * cstr = GAP_CSTR_STRING(s)
-        py_string = cstr
-        return py_string
+        cdef char * cstr
+        GAP_EnterStack()
+        try:
+            cstr = GAP_CSTR_STRING(s)
+        finally:
+            py_string = cstr
+            GAP_LeaveStack()
+            return py_string
 
 class Permutation(ObjWrap):
     def __init__(self, val):
@@ -93,11 +101,16 @@ class List(ObjWrap):
         cdef Int nargs = len(args)
         cdef Obj r
         cdef Obj v
-        r = GAP_NewPlist(nargs)
-        for i in range(nargs):
-            v = _unwrap_obj(args[i])
-            GAP_AssList(r, i+1, v)
-        _setup_objwrap(self, r)
+        GAP_EnterStack()
+        try:
+            r = GAP_NewPlist(nargs)
+            for i in range(nargs):
+                v = _unwrap_obj(args[i])
+                GAP_AssList(r, i+1, v)
+        finally:
+            GAP_LeaveStack()
+            _setup_objwrap(self, r)
+
     def __getitem__(self, pos):
         cdef Obj l = _unwrap_obj(self)
         cdef Int p = pos - 1 # Probably best to behave like a python list?
@@ -121,17 +134,25 @@ class Record(ObjWrap):
 
 class Function(ObjWrap):
     def __init__(self, val):
+        # Meh
         cdef Obj f = _unwrap_obj(val)
         _setup_objwrap(self, f)
     def __call__(self, *args):
         cdef Obj func = _unwrap_obj(self)
         # Meh
         cdef Obj argl = _unwrap_obj(List(*args))
-        return _wrap_obj(GAP_CallFuncList(func, argl))
+        cdef Obj r
+        GAP_EnterStack()
+        try:
+            r = GAP_CallFuncList(func, argl)
+        finally:
+            GAP_LeaveStack()
+            return _wrap_obj(r)
 
 class Float(ObjWrap):
     pass
 
+# TODO: Implement refcounting
 cdef void gasman_callback():
     pass
 
@@ -156,15 +177,33 @@ def initialize(args, gasman_cb, error_cb, handle_signals):
     GAP_Initialize(argc, argv, &gasman_callback, &error_callback, hsg)
 
 def EvalString(cmd):
-    return _wrap_obj(GAP_EvalString(_to_bytes(cmd)))
+    cdef Obj r
+    GAP_EnterStack()
+    try:
+        r = GAP_EvalString(_to_bytes(cmd))
+    finally:
+        GAP_LeaveStack()
+        return _wrap_obj(r)
 
 def ValueGlobalVariable(name):
-    return _wrap_obj(GAP_ValueGlobalVariable(_to_bytes(name)))
+    cdef Obj r
+    GAP_EnterStack()
+    try:
+        r = GAP_ValueGlobalVariable(_to_bytes(name))
+    finally:
+        GAP_LeaveStack()
+        return _wrap_obj(r)
 
 def CallFuncList(ObjWrap func, ObjWrap args):
     cdef Obj f = _unwrap_obj(func)
     cdef Obj a = _unwrap_obj(args)
-    return _wrap_obj(GAP_CallFuncList(f, a))
+    cdef Obj r
+    GAP_EnterStack()
+    try:
+        r = GAP_CallFuncList(f, a)
+    finally:
+        GAP_LeaveStack()
+        return _wrap_obj(r)
 
 # Possible to deduplicate this?
 def EQ(ObjWrap a, ObjWrap b):
