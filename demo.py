@@ -7,12 +7,11 @@ EvalString(u'Print("Hello, world\\n");')
 Print = Function("Print")
 LoadPackage = Function("LoadPackage")
 
-s = NewString("Hello, world\n")
+s = String("Hello, world\n")
+lf = String("\n")
 
-lf = NewString("\n")
+i = Integer(2 ** 128)
+i2 = Integer(- 2 ** 128)
 
-i = NewInteger(2 ** 128)
-i2 = NewInteger(- 2 ** 128)
-
-l = NewList(s,i,lf,i2,lf)
+l = List(s,i,lf,i2,lf)
 

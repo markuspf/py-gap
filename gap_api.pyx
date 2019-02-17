@@ -21,13 +21,13 @@ cdef CObj _unwrap_obj(Obj gobj):
 cdef Obj _wrap_obj(CObj o):
     go = None
     if GAP_IsInt(o):
-        go = Integer()
+        go = Integer.__new__(Integer)
     elif GAP_IsString(o):
-        go = String()
+        go = String.__new__(String)
     elif GAP_IsList(o):
-        go = List()
+        go = List.__new__(List)
     else:
-        go = Obj()
+        go = Obj.__new__(Obj)
     _setup_objwrap(go, o)
     return go
 
@@ -44,12 +44,9 @@ cdef class Obj(object):
     def __hash__(self):
         return <unsigned long>(self.value)
 
-def NewInteger(val):
-    int = Int()
-    int.from_python(val)
-    return int
-
 class Integer(Obj):
+    def __init__(self, val):
+        self.from_python(val)
     def from_python(self, val):
         cdef CObj r
         cdef char * climbs
@@ -93,14 +90,13 @@ class Integer(Obj):
             cbytes = pcint[:sz]
             res = int.from_bytes(cbytes, 'little')
             return sign * res
+    def __repr__(self):
+        return "<GAP Integer: %s>" % (self.to_python())
 
 # TODO: Immutable strings?
-def NewString(val):
-    str = String()
-    str.from_python(val)
-    return str
-
 class String(Obj):
+    def __init__(self, val):
+        self.from_python(val)
     def from_python(self, val):
         cdef CObj r
         GAP_EnterStack()
@@ -133,12 +129,9 @@ class Permutation(Obj):
         pass
 
 # TODO: Allow initialisation from Python list
-def NewList(val):
-    l = List()
-    l.from_python(val)
-    return l
-
 class List(Obj):
+    def __init__(self, *val):
+        self.from_python(*val)
     def from_python(self, *args):
         cdef Int i
         cdef Int nargs = len(args)
