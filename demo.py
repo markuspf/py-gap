@@ -4,15 +4,15 @@ initialize(['gap', '-l', '/home/mp397/git/gap', '-A', '--nointeract'], None, Non
 
 EvalString(u'Print("Hello, world\\n");')
 
-Print = Function(ValueGlobalVariable("Print"))
-LoadPackage = ValueGlobalVariable("LoadPackage")
-TNAM_NAME = ValueGlobalVariable("TNAM_NAME")
+Print = Function("Print")
+LoadPackage = Function("LoadPackage")
 
-s = String("Hello, world\n")
-lf = String("\n")
-i = Integer(2 ** 128)
-i2 = Integer(- 2 ** 128)
+s = NewString("Hello, world\n")
 
-l = List(s,i,lf,i2,lf)
+lf = NewString("\n")
 
-Print(String("bla"))
+i = NewInteger(2 ** 128)
+i2 = NewInteger(- 2 ** 128)
+
+l = NewList(s,i,lf,i2,lf)
+

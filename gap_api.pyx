@@ -1,3 +1,6 @@
+from gap_api cimport Obj as CObj
+from gap_api cimport ObjWrap as Obj
+
 # cython: c_string_type=unicode, c_string_encoding=utf-8
 
 # Helper to handle stringy inputs
@@ -6,29 +9,49 @@ cdef char * _to_bytes(string):
     cdef char * cstring = py_bytes
     return cstring
 
-cdef _setup_objwrap(ObjWrap go, Obj o):
+cdef _setup_objwrap(Obj go, CObj o):
     go.value = o
 
-cdef Obj _unwrap_obj(ObjWrap gobj):
-    cdef Obj r = gobj.value
+cdef CObj _unwrap_obj(Obj gobj):
+    cdef CObj r = gobj.value
     return r
 
-cdef ObjWrap _wrap_obj(Obj o):
-    go = ObjWrap()
+# TODO: Sensible?
+#       Do we need to wrap this in GAP_EnterStack/GAP_LeaveStack?
+cdef Obj _wrap_obj(CObj o):
+    go = None
+    if GAP_IsInt(o):
+        go = Integer()
+    elif GAP_IsString(o):
+        go = String()
+    elif GAP_IsList(o):
+        go = List()
+    else:
+        go = Obj()
     _setup_objwrap(go, o)
     return go
 
-cdef class ObjWrap(object):
+cdef class Obj(object):
     def __init__(self):
         self.value = NULL
+    def from_python(self, val):
+            pass
     def to_python(self):
         pass
+    def __repr__(self):
+        # Should be calling ViewString or somesuch
+        return "A GAP object"
     def __hash__(self):
         return <unsigned long>(self.value)
 
-class Integer(ObjWrap):
-    def __init__(self, val):
-        cdef Obj r
+def NewInteger(val):
+    int = Int()
+    int.from_python(val)
+    return int
+
+class Integer(Obj):
+    def from_python(self, val):
+        cdef CObj r
         cdef char * climbs
 
         sign = 1
@@ -48,7 +71,7 @@ class Integer(ObjWrap):
         r = GAP_MakeObjInt(<const UInt *>climbs, sign * nlimbs)
         _setup_objwrap(self, r)
     def to_python(self):
-        cdef Obj i = _unwrap_obj(self)
+        cdef CObj i = _unwrap_obj(self)
         cdef Int cint
         cdef const char * pcint
         cdef Int sz
@@ -71,9 +94,15 @@ class Integer(ObjWrap):
             res = int.from_bytes(cbytes, 'little')
             return sign * res
 
-class String(ObjWrap):
-    def __init__(self, val):
-        cdef Obj r
+# TODO: Immutable strings?
+def NewString(val):
+    str = String()
+    str.from_python(val)
+    return str
+
+class String(Obj):
+    def from_python(self, val):
+        cdef CObj r
         GAP_EnterStack()
         try:
             r = GAP_MakeString(_to_bytes(val))
@@ -81,7 +110,7 @@ class String(ObjWrap):
             GAP_LeaveStack()
             _setup_objwrap(self, r)
     def to_python(self):
-        cdef Obj s = _unwrap_obj(self)
+        cdef CObj s = _unwrap_obj(self)
         cdef char * cstr
         GAP_EnterStack()
         try:
@@ -90,17 +119,31 @@ class String(ObjWrap):
             py_string = cstr
             GAP_LeaveStack()
             return py_string
+    def __repr__(self):
+        return "<GAP String: %s>" % (self.to_python())
 
-class Permutation(ObjWrap):
-    def __init__(self, val):
-        self.value = None
+# TODO: As an initial hack we could call "PermList" and
+#       "ListPerm" on
+#       a list of images. Otherwise we'll have to define
+#       an api that can create PERM4 and PERM2
+class Permutation(Obj):
+    def from_python(self, val):
+        pass
+    def to_python(self):
+        pass
 
-class List(ObjWrap):
-    def __init__(self, *args):
+# TODO: Allow initialisation from Python list
+def NewList(val):
+    l = List()
+    l.from_python(val)
+    return l
+
+class List(Obj):
+    def from_python(self, *args):
         cdef Int i
         cdef Int nargs = len(args)
-        cdef Obj r
-        cdef Obj v
+        cdef CObj r
+        cdef CObj v
         GAP_EnterStack()
         try:
             r = GAP_NewPlist(nargs)
@@ -110,52 +153,66 @@ class List(ObjWrap):
         finally:
             GAP_LeaveStack()
             _setup_objwrap(self, r)
-
+    # TODO: deep?
+    def to_python(self):
+        pass
     def __getitem__(self, pos):
-        cdef Obj l = _unwrap_obj(self)
+        cdef CObj l = _unwrap_obj(self)
         cdef Int p = pos - 1 # Probably best to behave like a python list?
         return _wrap_obj(GAP_ElmList(l, p))
     def __setitem__(self, pos, val):
-        cdef Obj l = _unwrap_obj(self)
+        cdef CObj l = _unwrap_obj(self)
         cdef Int p = pos - 1
-        cdef Obj v = _unwrap_obj(val)
+        cdef CObj v = _unwrap_obj(val)
         GAP_AssList(l, p, v)
     def __len__(self):
-        cdef Obj l = _unwrap_obj(self)
+        cdef CObj l = _unwrap_obj(self)
         return GAP_LenList(l)
-    # We could call ViewString for this
-    def __repr__(self):
-        return "<wrapped GAP list>"
-    def __str__(self):
-        return "<wrapped GAP list>"
 
-class Record(ObjWrap):
+# TODO: For this we first need a GAP API for records
+class Record(Obj):
     pass
 
-class Function(ObjWrap):
-    def __init__(self, val):
-        # Meh
-        cdef Obj f = _unwrap_obj(val)
+class Function(Obj):
+    def __init__(self, name):
+        self.name = name
+        self.from_gap_by_name(name)
+    # TODO: The following two do not work/do not make sense. This object
+    #       is the incarnation of "to_python"
+    def from_python(self, val):
+        pass
+    def to_python(self):
+        pass
+    def from_gap_by_name(self, name):
+        self.name = name
+        # Meh, should also check that we are getting something
+        # callable (function, operation)
+        cdef CObj f = GAP_ValueGlobalVariable(_to_bytes(name))
         _setup_objwrap(self, f)
     def __call__(self, *args):
-        cdef Obj func = _unwrap_obj(self)
+        cdef CObj func = _unwrap_obj(self)
         # Meh
-        cdef Obj argl = _unwrap_obj(List(*args))
-        cdef Obj r
+        l = List()
+        l.from_python(*args)
+        cdef CObj argl = _unwrap_obj(l)
+        cdef CObj r
         GAP_EnterStack()
         try:
             r = GAP_CallFuncList(func, argl)
         finally:
             GAP_LeaveStack()
             return _wrap_obj(r)
-
-class Float(ObjWrap):
+    def __repr__(self):
+        return "<GAP Function: %s>" %(self.name,)
+# needs float back-and-forth geshuffle
+class Float(Obj):
     pass
 
 # TODO: Implement refcounting
 cdef void gasman_callback():
     pass
 
+# TODO: Implement some kind of error handling
 cdef void error_callback():
     pass
 
@@ -177,7 +234,7 @@ def initialize(args, gasman_cb, error_cb, handle_signals):
     GAP_Initialize(argc, argv, &gasman_callback, &error_callback, hsg)
 
 def EvalString(cmd):
-    cdef Obj r
+    cdef CObj r
     GAP_EnterStack()
     try:
         r = GAP_EvalString(_to_bytes(cmd))
@@ -186,7 +243,7 @@ def EvalString(cmd):
         return _wrap_obj(r)
 
 def ValueGlobalVariable(name):
-    cdef Obj r
+    cdef CObj r
     GAP_EnterStack()
     try:
         r = GAP_ValueGlobalVariable(_to_bytes(name))
@@ -194,10 +251,10 @@ def ValueGlobalVariable(name):
         GAP_LeaveStack()
         return _wrap_obj(r)
 
-def CallFuncList(ObjWrap func, ObjWrap args):
-    cdef Obj f = _unwrap_obj(func)
-    cdef Obj a = _unwrap_obj(args)
-    cdef Obj r
+def CallFuncList(Obj func, Obj args):
+    cdef CObj f = _unwrap_obj(func)
+    cdef CObj a = _unwrap_obj(args)
+    cdef CObj r
     GAP_EnterStack()
     try:
         r = GAP_CallFuncList(f, a)
@@ -206,62 +263,62 @@ def CallFuncList(ObjWrap func, ObjWrap args):
         return _wrap_obj(r)
 
 # Possible to deduplicate this?
-def EQ(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def EQ(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return GAP_EQ(ca, cb)
 
-def LT(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def LT(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return GAP_LT(ca, cb)
 
-def IN(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def IN(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return GAP_IN(ca, cb)
 
-def SUM(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def SUM(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_SUM(ca, cb))
 
-def DIFF(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def DIFF(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_DIFF(ca, cb))
 
-def PROD(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def PROD(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_PROD(ca, cb))
 
-def QUO(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def QUO(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_QUO(ca, cb))
 
-def LQUO(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def LQUO(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_LQUO(ca, cb))
 
-def POW(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def POW(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_POW(ca, cb))
 
-def COMM(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def COMM(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_COMM(ca, cb))
 
-def MOD(ObjWrap a, ObjWrap b):
-    cdef Obj ca = _unwrap_obj(a)
-    cdef Obj cb = _unwrap_obj(b)
+def MOD(Obj a, Obj b):
+    cdef CObj ca = _unwrap_obj(a)
+    cdef CObj cb = _unwrap_obj(b)
     return _wrap_obj(GAP_MOD(ca, cb))
 
-#    Obj GAP_True
-#    Obj GAP_False
-#    Obj GAP_Fail
+#    CObj GAP_True
+#    CObj GAP_False
+#    CObj GAP_Fail
 #
