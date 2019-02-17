@@ -6,6 +6,7 @@ EvalString(u'Print("Hello, world\\n");')
 
 Print = Function("Print")
 LoadPackage = Function("LoadPackage")
+ViewString = Function("ViewString")
 
 s = String("Hello, world\n")
 lf = String("\n")
@@ -14,4 +15,6 @@ i = Integer(2 ** 128)
 i2 = Integer(- 2 ** 128)
 
 l = List(s,i,lf,i2,lf)
+
+r = Record({})
 

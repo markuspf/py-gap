@@ -26,6 +26,8 @@ cdef Obj _wrap_obj(CObj o):
         go = String.__new__(String)
     elif GAP_IsList(o):
         go = List.__new__(List)
+    elif GAP_IsRecord(o):
+        go = Record.__new__(Record)
     else:
         go = Obj.__new__(Obj)
     _setup_objwrap(go, o)
@@ -146,25 +148,68 @@ class List(Obj):
         finally:
             GAP_LeaveStack()
             _setup_objwrap(self, r)
-    # TODO: deep?
+    # TODO: deep? optional deep?
     def to_python(self):
         pass
     def __getitem__(self, pos):
         cdef CObj l = _unwrap_obj(self)
         cdef Int p = pos - 1 # Probably best to behave like a python list?
-        return _wrap_obj(GAP_ElmList(l, p))
+        cdef CObj r
+        GAP_EnterStack()
+        try:
+            r = GAP_ElmList(l, p)
+        finally:
+            GAP_LeaveStack()
+            return _wrap_obj(r)
     def __setitem__(self, pos, val):
         cdef CObj l = _unwrap_obj(self)
         cdef Int p = pos - 1
         cdef CObj v = _unwrap_obj(val)
-        GAP_AssList(l, p, v)
+        GAP_EnterStack()
+        try:
+            GAP_AssList(l, p, v)
+        finally:
+            GAP_LeaveStack()
     def __len__(self):
         cdef CObj l = _unwrap_obj(self)
         return GAP_LenList(l)
 
 # TODO: For this we first need a GAP API for records
 class Record(Obj):
-    pass
+    def __init__(self, dict):
+        self.from_python(dict)
+    def __getitem__(self, name):
+        cdef CObj rec = _unwrap_obj(self)
+        cdef CObj cname = _unwrap_obj(name)
+        cdef CObj r
+        GAP_EnterStack()
+        try:
+            r = GAP_ElmRecord(rec, cname)
+        finally:
+            GAP_LeaveStack()
+            return _wrap_obj(r)
+    def __setitem__(self, name, value):
+        cdef CObj rec = _unwrap_obj(self)
+        cdef CObj cname = _unwrap_obj(name)
+        cdef CObj cvalue = _unwrap_obj(value)
+        GAP_EnterStack()
+        try:
+            GAP_AssRecord(rec, cname, cvalue)
+        finally:
+            GAP_LeaveStack()
+
+    def from_python(self, dict):
+        cdef CObj r
+        GAP_EnterStack()
+        try:
+            r = GAP_NewPrecord(15)
+        finally:
+            GAP_LeaveStack()
+            _setup_objwrap(self, r)
+
+    # TODO: Deep, optional deep?
+    def to_python(self, dict):
+        pass
 
 class Function(Obj):
     def __init__(self, name):
