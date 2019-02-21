@@ -9,10 +9,6 @@ import gap_api as GAP
 
 __version__ = '0.0.1'
 
-from .images import (
-    extract_image_filenames, display_data_for_image, image_setup_cmd
-)
-
 class GAPKernel(Kernel):
     implementation = 'gap_kernel'
     implementation_version = __version__
