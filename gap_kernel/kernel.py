@@ -29,6 +29,7 @@ class GAPKernel(Kernel):
                      'file_extension': '.g'}
 
     def __init__(self, **kwargs):
+        Kernel.__init__(self, **kwargs)
         GAP.initialize(['gap',  '-l', '/home/mp397/git/gap', '-A', '--nointeract'], None, None, 0)
         # TODO: Load some version of `JupyterKernel` to have completion and that
         # TODO: Signal handling?
