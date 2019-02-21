@@ -19,4 +19,14 @@ run it.
 env LD_LIBRARY_PATH=/home/mp397/git/gap/.libs python3 demo.py
 ```
 
+The Jupyter kernel in this repository is very basic, but does work. if you install it with
 
+```
+python3 install.py
+```
+
+and then in the `py-gap` directory
+
+```
+env LD_LIBRARY_PATH=/home/mp397/git/gap/.libs python3 jupyter notebook
+```
